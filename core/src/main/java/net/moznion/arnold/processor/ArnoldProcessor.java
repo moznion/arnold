@@ -23,9 +23,11 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.tools.JavaFileObject;
+import lombok.extern.slf4j.Slf4j;
 import net.moznion.arnold.annotation.Required;
 import net.moznion.arnold.exception.BuildingFailedException;
 
+@Slf4j
 @SupportedAnnotationTypes({
     "net.moznion.arnold.annotation.ArnoldBuilder",
 })
@@ -109,8 +111,7 @@ public class ArnoldProcessor extends AbstractProcessor {
                             packageNameOfAnnotatedClass, generatedClass, generatedClassName
                         );
                     } catch (IOException e) {
-                        // TODO exceptional handling
-                        e.printStackTrace();
+                        log.error("Failed annotation processing", e);
                         return false;
                     }
 
@@ -204,8 +205,7 @@ public class ArnoldProcessor extends AbstractProcessor {
                         terminationBuilderClassName
                     );
                 } catch (IOException e) {
-                    // TODO exceptional handling
-                    e.printStackTrace();
+                    log.error("Failed annotation processing", e);
                     return false;
                 }
             }
