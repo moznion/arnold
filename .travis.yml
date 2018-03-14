@@ -1,0 +1,8 @@
+language: java
+jdk:
+  - oraclejdk9
+  - oraclejdk8
+install: mvn install -DskipTests=true -Dgpg.skip=true
+script: mvn clean test
+sudo: false
+
