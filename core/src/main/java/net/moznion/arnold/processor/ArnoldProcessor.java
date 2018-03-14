@@ -9,10 +9,13 @@ import java.io.IOException;
 import java.io.Writer;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.RoundEnvironment;
@@ -20,9 +23,10 @@ import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.tools.JavaFileObject;
-import lombok.Value;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.moznion.arnold.annotation.Required;
 import net.moznion.arnold.exception.BuildingFailedException;
@@ -79,8 +83,8 @@ public class ArnoldProcessor extends AbstractProcessor {
 
                     for (int i = 0; i < cursor; i++) {
                         final FieldUnit fieldUnit = fieldUnits.get(i);
-                        final String varName = fieldUnit.getInternalFieldName();
-                        final TypeName type = fieldUnit.getTypeName();
+                        final String varName = fieldUnit.internalFieldName;
+                        final TypeName type = fieldUnit.typeName;
 
                         constructorBuilder.addParameter(type, varName)
                                           .addStatement("this.$N = $N", varName, varName);
@@ -129,8 +133,8 @@ public class ArnoldProcessor extends AbstractProcessor {
 
                 for (int i = 0; i < fieldNum; i++) {
                     final FieldUnit fieldUnit = fieldUnits.get(i);
-                    final String varName = fieldUnit.getInternalFieldName();
-                    final TypeName type = fieldUnit.getTypeName();
+                    final String varName = fieldUnit.internalFieldName;
+                    final TypeName type = fieldUnit.typeName;
 
                     constructorBuilder
                         .addParameter(type, varName)
@@ -219,19 +223,35 @@ public class ArnoldProcessor extends AbstractProcessor {
     }
 
     private static List<Element> collectFieldsForBuilding(final List<? extends Element> elements) {
-        return elements.stream()
-                       .filter(e -> e.getKind().isField())
-                       .filter(e -> {
-                           final Set<javax.lang.model.element.Modifier> mods = e.getModifiers();
-                           final boolean isFinal =
-                               mods.contains(javax.lang.model.element.Modifier.FINAL);
-                           final Boolean isStatic =
-                               mods.contains(javax.lang.model.element.Modifier.STATIC);
-                           final boolean isRequired = e.getAnnotation(Required.class) != null;
 
-                           return (isFinal || isRequired) && !isStatic;
-                       })
-                       .collect(Collectors.toList());
+        final Supplier<Stream<? extends Element>> streamSupplier = () ->
+            elements.stream()
+                    .filter(e -> e.getKind().isField())
+                    .filter(e -> {
+                        final Set<Modifier> mods = e.getModifiers();
+                        final boolean isFinal = mods.contains(Modifier.FINAL);
+                        final Boolean isStatic = mods.contains(Modifier.STATIC);
+                        final boolean isRequired = e.getAnnotation(Required.class) != null;
+                        return (isFinal || isRequired) && !isStatic;
+                    });
+
+        final Stream<? extends Element> orderedFields =
+            streamSupplier.get()
+                          .filter(
+                              e -> e.getAnnotation(Required.class) != null
+                                  && e.getAnnotation(Required.class).order() >= 0
+                          )
+                          .sorted(
+                              Comparator.comparing(e -> e.getAnnotation(Required.class).order())
+                          );
+        final Stream<? extends Element> nonOrderedFields =
+            streamSupplier.get().filter(
+                e -> e.getAnnotation(Required.class) == null
+                    || e.getAnnotation(Required.class).order() < 0
+            );
+
+        return Stream.concat(orderedFields, nonOrderedFields)
+                     .collect(Collectors.toList());
     }
 
     private static String appendSuffix(final String base, final int suffix) {
@@ -247,8 +267,7 @@ public class ArnoldProcessor extends AbstractProcessor {
     ) {
         String serializedArgsToInstantiate = IntStream.range(0, numOfBuilder)
                                                       .mapToObj(
-                                                          i -> fieldUnits.get(i)
-                                                                         .getInternalFieldName()
+                                                          i -> fieldUnits.get(i).internalFieldName
                                                       )
                                                       .collect(Collectors.joining(","));
         if (!serializedArgsToInstantiate.isEmpty()) {
@@ -266,7 +285,7 @@ public class ArnoldProcessor extends AbstractProcessor {
                          .build();
     }
 
-    @Value
+    @AllArgsConstructor
     private static class FieldUnit {
         private final String rawFieldName;
         private final String internalFieldName;
