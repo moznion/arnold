@@ -8,9 +8,8 @@ import com.squareup.javapoet.TypeSpec;
 import java.io.IOException;
 import java.io.Writer;
 import java.lang.reflect.Field;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -23,6 +22,7 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.tools.JavaFileObject;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import net.moznion.arnold.annotation.Required;
 import net.moznion.arnold.exception.BuildingFailedException;
@@ -41,10 +41,10 @@ public class ArnoldProcessor extends AbstractProcessor {
 
         for (final TypeElement annotation : annotations) {
             for (final Element annotated : roundEnv.getElementsAnnotatedWith(annotation)) {
-                final Map<String, Object> fieldName2Builder = new HashMap<>();
+                final List<FieldUnit> fieldUnits = new ArrayList<>();
 
                 // TODO check modifier? STATIC
-                final String packageNameOfAnnotatedClass =
+                final String packageName =
                     processingEnv.getElementUtils().getPackageOf(annotated).toString();
                 final String builderClassNameBase = annotated.getSimpleName() + "Builder";
 
@@ -53,15 +53,17 @@ public class ArnoldProcessor extends AbstractProcessor {
                 if (fieldsForBuilding.isEmpty()) {
                     continue;
                 }
-                final int fieldNum = fieldsForBuilding.size();
 
+                final int fieldNum = fieldsForBuilding.size();
                 int cursor = 0;
                 for (final Element targetField : fieldsForBuilding) {
                     // build builder for each field
 
                     final String generatedClassName = appendSuffix(builderClassNameBase, cursor);
-                    final String fieldName = targetField.getSimpleName().toString();
+                    final String rawFieldName = targetField.getSimpleName().toString();
+                    final String internalFieldName = "__" + rawFieldName + cursor;
                     final TypeName fieldType = TypeName.get(targetField.asType());
+                    fieldUnits.add(new FieldUnit(rawFieldName, internalFieldName, fieldType));
 
                     final MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder();
                     if (cursor == 0) {
@@ -73,23 +75,18 @@ public class ArnoldProcessor extends AbstractProcessor {
                                 .addModifiers(
                                     javax.lang.model.element.Modifier.PUBLIC,
                                     javax.lang.model.element.Modifier.FINAL
-                                )
-                                .addField(
-                                    fieldType, fieldName,
-                                    javax.lang.model.element.Modifier.PRIVATE
                                 );
 
                     for (int i = 0; i < cursor; i++) {
-                        final String varName = appendSuffix("__b", i);
-                        final String builderClassName = appendSuffix(builderClassNameBase, i);
+                        final FieldUnit fieldUnit = fieldUnits.get(i);
+                        final String varName = fieldUnit.getInternalFieldName();
+                        final TypeName type = fieldUnit.getTypeName();
 
-                        constructorBuilder.addParameter(
-                            ClassName.get(packageNameOfAnnotatedClass, builderClassName),
-                            varName
-                        ).addStatement("this.$N = $N", varName, varName);
+                        constructorBuilder.addParameter(type, varName)
+                                          .addStatement("this.$N = $N", varName, varName);
 
                         classBuilder.addField(
-                            ClassName.get(packageNameOfAnnotatedClass, builderClassName),
+                            type,
                             varName,
                             javax.lang.model.element.Modifier.PRIVATE,
                             javax.lang.model.element.Modifier.FINAL
@@ -97,7 +94,7 @@ public class ArnoldProcessor extends AbstractProcessor {
                     }
 
                     final MethodSpec setter =
-                        buildSetterMethod(fieldName, fieldType, packageNameOfAnnotatedClass,
+                        buildSetterMethod(fieldUnits, rawFieldName, fieldType, packageName,
                                           builderClassNameBase + (cursor + 1), cursor
                         );
 
@@ -108,14 +105,12 @@ public class ArnoldProcessor extends AbstractProcessor {
 
                     try {
                         outputJavaFile(
-                            packageNameOfAnnotatedClass, generatedClass, generatedClassName
+                            packageName, generatedClass, generatedClassName
                         );
                     } catch (IOException e) {
                         log.error("Failed annotation processing", e);
                         return false;
                     }
-
-                    fieldName2Builder.put(fieldName, appendSuffix("__b", cursor));
 
                     cursor++;
                 }
@@ -133,18 +128,17 @@ public class ArnoldProcessor extends AbstractProcessor {
                             );
 
                 for (int i = 0; i < fieldNum; i++) {
-                    final String varName = appendSuffix("__b", i);
-                    final String builderClassName = appendSuffix(builderClassNameBase, i);
+                    final FieldUnit fieldUnit = fieldUnits.get(i);
+                    final String varName = fieldUnit.getInternalFieldName();
+                    final TypeName type = fieldUnit.getTypeName();
 
                     constructorBuilder
-                        .addParameter(
-                            ClassName.get(packageNameOfAnnotatedClass, builderClassName), varName
-                        )
+                        .addParameter(type, varName)
                         .addStatement("this.$N = $N", varName, varName);
 
                     classBuilder.addField(
-                        ClassName.get(packageNameOfAnnotatedClass, builderClassName),
-                        appendSuffix("__b", i),
+                        type,
+                        varName,
                         javax.lang.model.element.Modifier.PRIVATE,
                         javax.lang.model.element.Modifier.FINAL
                     );
@@ -165,19 +159,17 @@ public class ArnoldProcessor extends AbstractProcessor {
                               );
 
                 int cnt = 0;
-                for (final Map.Entry<String, Object> n2b : fieldName2Builder.entrySet()) {
+                for (final FieldUnit fieldUnit : fieldUnits) {
                     builderBuilder.addStatement(
                         "final $T __field$L = __clazz.getDeclaredField($S)",
-                        Field.class, cnt, n2b.getKey()
-                    );
-                    builderBuilder.addStatement("__field$L.setAccessible(true)", cnt);
-                    builderBuilder.addStatement(
-                        "final $T __value$L = $N.getClass().getDeclaredField($S)", Field.class, cnt,
-                        n2b.getValue(), n2b.getKey()
-                    );
-                    builderBuilder.addStatement("__value$L.setAccessible(true)", cnt);
-                    builderBuilder.addStatement(
-                        "__field$L.set(__obj, __value$L.get($N))", cnt, cnt, n2b.getValue()
+                        Field.class,
+                        cnt,
+                        fieldUnit.rawFieldName
+                    ).addStatement(
+                        "__field$L.setAccessible(true)", cnt
+                    ).addStatement(
+                        "__field$L.set(__obj, this.$N)", cnt,
+                        fieldUnit.internalFieldName
                     );
                     cnt++;
                 }
@@ -200,10 +192,7 @@ public class ArnoldProcessor extends AbstractProcessor {
                                                                 .build();
 
                 try {
-                    outputJavaFile(
-                        packageNameOfAnnotatedClass, terminationBuilder,
-                        terminationBuilderClassName
-                    );
+                    outputJavaFile(packageName, terminationBuilder, terminationBuilderClassName);
                 } catch (IOException e) {
                     log.error("Failed annotation processing", e);
                     return false;
@@ -224,6 +213,7 @@ public class ArnoldProcessor extends AbstractProcessor {
 
         try (Writer writer = f.openWriter()) {
             javaFile.writeTo(writer);
+            log.debug((javaFile.toString()));
             writer.close();
         }
     }
@@ -248,14 +238,18 @@ public class ArnoldProcessor extends AbstractProcessor {
         return base + (suffix == 0 ? "" : suffix);
     }
 
-    private static MethodSpec buildSetterMethod(final String fieldName,
+    private static MethodSpec buildSetterMethod(final List<FieldUnit> fieldUnits,
+                                                final String fieldName,
                                                 final TypeName fieldType,
                                                 final String packageName,
                                                 final String nextBuilderClassName,
                                                 final int numOfBuilder
     ) {
         String serializedArgsToInstantiate = IntStream.range(0, numOfBuilder)
-                                                      .mapToObj(i -> appendSuffix("__b", i))
+                                                      .mapToObj(
+                                                          i -> fieldUnits.get(i)
+                                                                         .getInternalFieldName()
+                                                      )
                                                       .collect(Collectors.joining(","));
         if (!serializedArgsToInstantiate.isEmpty()) {
             serializedArgsToInstantiate = serializedArgsToInstantiate + ",";
@@ -265,11 +259,17 @@ public class ArnoldProcessor extends AbstractProcessor {
                          .addModifiers(javax.lang.model.element.Modifier.PUBLIC)
                          .returns(ClassName.get(packageName, nextBuilderClassName))
                          .addParameter(fieldType, fieldName)
-                         .addStatement("this.$N = $N", fieldName, fieldName)
                          .addStatement(
-                             "return new $N(" + serializedArgsToInstantiate + "this)",
+                             "return new $N(" + serializedArgsToInstantiate + fieldName + ")",
                              nextBuilderClassName
                          )
                          .build();
+    }
+
+    @Value
+    private static class FieldUnit {
+        private final String rawFieldName;
+        private final String internalFieldName;
+        private final TypeName typeName;
     }
 }

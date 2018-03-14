@@ -14,6 +14,7 @@ class BasicValueObjectTest {
         final double barValue = 46.49;
         final int buzValue = 5963;
         final List<String> words = Arrays.asList("I'm", "lovin'", "it");
+
         final BasicValueObject obj = new BasicValueObjectBuilder().foo(fooValue)
                                                                   .bar(barValue)
                                                                   .buz(buzValue)
