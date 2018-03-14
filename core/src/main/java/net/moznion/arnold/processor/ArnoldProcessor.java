@@ -18,6 +18,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
+import javax.annotation.processing.Messager;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
@@ -25,13 +26,12 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import lombok.AllArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import net.moznion.arnold.annotation.Required;
+import net.moznion.arnold.exception.ArnoldAnnotationProcessiongFailedException;
 import net.moznion.arnold.exception.BuildingFailedException;
 
-@Slf4j
 @SupportedAnnotationTypes({
     "net.moznion.arnold.annotation.ArnoldBuilder",
 })
@@ -39,6 +39,8 @@ import net.moznion.arnold.exception.BuildingFailedException;
 public class ArnoldProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        final Messager messager = super.processingEnv.getMessager();
+
         if (annotations.size() == 0) {
             return true;
         }
@@ -112,8 +114,11 @@ public class ArnoldProcessor extends AbstractProcessor {
                             packageName, generatedClass, generatedClassName
                         );
                     } catch (IOException e) {
-                        log.error("Failed annotation processing", e);
-                        return false;
+                        messager.printMessage(
+                            Diagnostic.Kind.ERROR,
+                            "Failed annotation processing"
+                        );
+                        throw new ArnoldAnnotationProcessiongFailedException(e);
                     }
 
                     cursor++;
@@ -198,8 +203,8 @@ public class ArnoldProcessor extends AbstractProcessor {
                 try {
                     outputJavaFile(packageName, terminationBuilder, terminationBuilderClassName);
                 } catch (IOException e) {
-                    log.error("Failed annotation processing", e);
-                    return false;
+                    messager.printMessage(Diagnostic.Kind.ERROR, "Failed annotation processing");
+                    throw new ArnoldAnnotationProcessiongFailedException(e);
                 }
             }
         }
@@ -217,7 +222,6 @@ public class ArnoldProcessor extends AbstractProcessor {
 
         try (Writer writer = f.openWriter()) {
             javaFile.writeTo(writer);
-            log.debug((javaFile.toString()));
             writer.close();
         }
     }
@@ -285,10 +289,18 @@ public class ArnoldProcessor extends AbstractProcessor {
                          .build();
     }
 
-    @AllArgsConstructor
     private static class FieldUnit {
         private final String rawFieldName;
         private final String internalFieldName;
         private final TypeName typeName;
+
+        private FieldUnit(final String rawFieldName,
+                          final String internalFieldName,
+                          final TypeName typeName
+        ) {
+            this.rawFieldName = rawFieldName;
+            this.internalFieldName = internalFieldName;
+            this.typeName = typeName;
+        }
     }
 }
