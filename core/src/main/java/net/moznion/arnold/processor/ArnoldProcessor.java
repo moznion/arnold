@@ -29,8 +29,8 @@ import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import net.moznion.arnold.annotation.Required;
-import net.moznion.arnold.exception.ArnoldAnnotationProcessiongFailedException;
-import net.moznion.arnold.exception.BuildingFailedException;
+import net.moznion.arnold.exception.ArnoldAnnotationProcessingFailedException;
+import net.moznion.arnold.exception.BuildingInstanceFailedException;
 
 @SupportedAnnotationTypes({
     "net.moznion.arnold.annotation.ArnoldBuilder",
@@ -118,7 +118,7 @@ public class ArnoldProcessor extends AbstractProcessor {
                             Diagnostic.Kind.ERROR,
                             "Failed annotation processing"
                         );
-                        throw new ArnoldAnnotationProcessiongFailedException(e);
+                        throw new ArnoldAnnotationProcessingFailedException(e);
                     }
 
                     cursor++;
@@ -192,7 +192,7 @@ public class ArnoldProcessor extends AbstractProcessor {
                                                          )
                                                          .addStatement(
                                                              "throw new $T(e)",
-                                                             BuildingFailedException.class
+                                                             BuildingInstanceFailedException.class
                                                          )
                                                          .endControlFlow()
                                                          .build();
@@ -204,7 +204,7 @@ public class ArnoldProcessor extends AbstractProcessor {
                     outputJavaFile(packageName, terminationBuilder, terminationBuilderClassName);
                 } catch (IOException e) {
                     messager.printMessage(Diagnostic.Kind.ERROR, "Failed annotation processing");
-                    throw new ArnoldAnnotationProcessiongFailedException(e);
+                    throw new ArnoldAnnotationProcessingFailedException(e);
                 }
             }
         }
@@ -254,7 +254,7 @@ public class ArnoldProcessor extends AbstractProcessor {
                     || e.getAnnotation(Required.class).order() < 0
             );
 
-        return Stream.concat(orderedFields, nonOrderedFields)
+        return Stream.concat(nonOrderedFields, orderedFields)
                      .collect(Collectors.toList());
     }
 

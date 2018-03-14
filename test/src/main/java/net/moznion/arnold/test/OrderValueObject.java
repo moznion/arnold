@@ -19,7 +19,7 @@ public class OrderValueObject {
     @Required(order = 999)
     private final int xxx;
 
-    public OrderValueObject() { // dummy
+    OrderValueObject() { // dummy
         this.foobar = 0;
         this.xxx = 0;
     }
