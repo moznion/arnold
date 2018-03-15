@@ -4,7 +4,7 @@ import net.moznion.arnold.annotation.ArnoldBuilder;
 import net.moznion.arnold.annotation.Required;
 
 @ArnoldBuilder
-public class InnerClassObject {
+class InnerClassObject {
     @Required
     private Inner1 inner1;
     @Required

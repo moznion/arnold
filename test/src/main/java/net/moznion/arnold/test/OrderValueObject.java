@@ -4,7 +4,7 @@ import net.moznion.arnold.annotation.ArnoldBuilder;
 import net.moznion.arnold.annotation.Required;
 
 @ArnoldBuilder
-public class OrderValueObject {
+class OrderValueObject {
     @Required(order = 2)
     private int foo;
     @Required
