@@ -1,6 +1,6 @@
 # Arnold
 
-[![Build Status](https://travis-ci.org/moznion/arnold.svg?branch=master)](https://travis-ci.org/moznion/arnold)
+[![Build Status](https://travis-ci.org/moznion/arnold.svg?branch=master)](https://travis-ci.org/moznion/arnold) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/net.moznion.arnold/core/badge.svg)](https://maven-badges.herokuapp.com/maven-central/net.moznion.arnold/core) [![javadoc.io](https://javadocio-badges.herokuapp.com/net.moznion.arnold/core/badge.svg)](https://javadocio-badges.herokuapp.com/net.moznion.arnold/core)
 
 Arnold is a builder (and the generator) that guarantees all mandatory elements for instantiation.
 
