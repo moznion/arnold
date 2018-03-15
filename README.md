@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/moznion/arnold.svg?branch=master)](https://travis-ci.org/moznion/arnold)
 
-Arnold is a builder (and the generator) that guarantees all elements necessary for instantiation.
+Arnold is a builder (and the generator) that guarantees all mandatory elements for instantiation.
 
 This library uses annotation processor, so it generates the builder automatically on annotation
 processing phase if `@ArnoldBuilder` annotation is marked.
@@ -71,7 +71,7 @@ The `final` field is treated as a necessary element even if `@Required` is not g
 
 ### Specify the order
 
-You can specify the order of the fields specified in the builder;
+You can specify the order of appearance the fields in the builder.
 
 ```java
 import net.moznion.arnold.annotation.ArnoldBuilder;

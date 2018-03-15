@@ -12,10 +12,12 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Required {
     /**
-     * order parameter is the order of the fields specified in the builder.
+     * order parameter can specify the order of appearance the fields in the builder.
      * <p>
      * Lower values are processed first. If the same value is given, the one defined earlier will be
      * processed first.
+     *
+     * @return order of appearance the fields in the builder
      */
     int order() default -1;
 }
